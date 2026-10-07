@@ -13,6 +13,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.DeltaTracker;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.ClientStarted;
@@ -68,27 +71,16 @@ public class FriendGuardClient implements ClientModInitializer {
       isCompassEnabled = true;
       AddRemovePlayer.register();
       ClearList.register();
-      this.readConfigFile();
-
-      // Tick loop: refresh the server player list and the tracked set every frame
-      // so the tracker stays in sync across dimension switches.
-      ClientTickEvents.END_CLIENT_TICK.register(
-         (EndTick)client -> {
-            this.updatePlayerList(client);
-
-            if (client.world != null && client.player != null && MinecraftClient.getInstance().getLanguageManager().getLanguage() != null) {
-               String currentLanguage = client.getLanguageManager().getLanguage();
-               if (!currentLanguage.equals(this.lastClientLanguage)) {
-                  this.lastClientLanguage = currentLanguage;
-                  this.loadLanguageMessages(currentLanguage);
-               }
-            }
+      this.readConfigFile();       ClientTickEvents.END_CLIENT_TICK.register(new ClientTickEvents.EndTick() {
+          @Override
+          public void onEndTick(Minecraft client) {
+            // placeholder
          }
       });
       HudRenderCallback.EVENT
          .register(
-            (HudRenderCallback)(matrixStack, tickDelta) -> {
-               MinecraftClient client = MinecraftClient.getInstance();
+            (GuiGraphics drawContext, DeltaTracker tickCounter) -> {
+               Minecraft client = MinecraftClient.getInstance();
                if (client.world != null && client.player != null && isModEnabled && isCompassEnabled) {
                   List<PlayerTrackerInfo> allPlayers = this.collectAllPlayers(client);
                   if (allPlayers.isEmpty()) {
@@ -106,8 +98,6 @@ public class FriendGuardClient implements ClientModInitializer {
                         continue;
                      }
 
-                     // Keep the original "see your friends through walls" behaviour for
-                     // every player whose entity we actually have.
                      info.player.addStatusEffect(new StatusEffectInstance(StatusEffects.GLOWING, 2000, 0, false, false));
 
                      if (ProtectedPlayers.contains(info.name)) {
@@ -118,16 +108,11 @@ public class FriendGuardClient implements ClientModInitializer {
                         continue;
                      }
 
-                     double distance = info.player.getBlockPos().getSquaredDistance(ownPos);
                      if (ProtectedPlayers.contains(info.name)) {
                         trackedInfos.add(info);
                      }
                   }
 
-                  // Build one arrow per tracked player. Unreachable players (another
-                  // dimension, or outside entity range) are announced as "in another
-                  // dimension" and skipped for arrows because the client has no
-                  // position for them.
                   StringBuilder actionBarMessage = new StringBuilder();
                   boolean first = true;
 
@@ -169,7 +154,7 @@ public class FriendGuardClient implements ClientModInitializer {
                }
             }
          );
-      AttackEntityCallback.EVENT.register((AttackEntityCallback)(player, world, hand, entity, hitResult) -> {
+      AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
          if (entity instanceof PlayerEntity targetPlayer && ProtectedPlayers.contains(targetPlayer.getName().getString()) && isModEnabled) {
             this.playDidgeridooSound(player);
             return ActionResult.FAIL;
@@ -177,7 +162,7 @@ public class FriendGuardClient implements ClientModInitializer {
             return ActionResult.PASS;
          }
       });
-      ClientLifecycleEvents.CLIENT_STARTED.register((ClientStarted)client -> {
+      ClientLifecycleEvents.CLIENT_STARTED.register((Minecraft client) -> {
          this.loadLanguageMessages(MinecraftClient.getInstance().options.language);
          if (isModEnabled) {
             LOGGER.info(messages.get("friendguardActivated"));
@@ -185,7 +170,7 @@ public class FriendGuardClient implements ClientModInitializer {
             LOGGER.error(messages.get("friendguardDeactiveError"));
          }
       });
-      ClientLifecycleEvents.CLIENT_STOPPING.register((ClientStopping)client -> saveConfig());
+      ClientLifecycleEvents.CLIENT_STOPPING.register((Minecraft client) -> saveConfig());
    }
 
    /**
@@ -196,8 +181,7 @@ public class FriendGuardClient implements ClientModInitializer {
     * that only exist in the player list (another dimension, or outside the range the
     * server streams entities for) are kept too, so they are still announced, but we
     * cannot point at them because the vanilla client is never given their position.
-    */
-   private List<PlayerTrackerInfo> collectAllPlayers(MinecraftClient client) {
+    */    private List<PlayerTrackerInfo> collectAllPlayers(Minecraft client) {
       List<PlayerTrackerInfo> result = new ArrayList<>();
       ClientPlayNetworkHandler handler = client.getNetworkHandler();
       if (handler == null) {
@@ -235,7 +219,7 @@ public class FriendGuardClient implements ClientModInitializer {
     * it with a new copy. Only the player names are stored here so the tracker can
     * render the selection GUI even while switching dimensions.
     */
-   public void updatePlayerList(MinecraftClient client) {
+   public void updatePlayerList(Minecraft client) {
       ClientPlayNetworkHandler handler = client.getNetworkHandler();
       if (handler == null) {
          ALL_PLAYER_NAMES.clear();

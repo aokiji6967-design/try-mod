@@ -47,33 +47,6 @@ public class FriendGuardConfigScreen extends Screen {
       this.errorMessage = this.messages.get("descriptionLabel");
    }
 
-public class FriendGuardConfigScreen extends Screen {
-   private final Screen parent;
-   private TextFieldWidget textFieldWidget;
-   private List<String> protectedPlayers;
-   private String errorMessage;
-   private int scrollOffset;
-   private static final int MAX_DISPLAY = 10;
-   private static final int SCROLL_STEP = 10;
-   private ButtonWidget onButton;
-   private ButtonWidget offButton;
-   private ButtonWidget compassOnButton;
-   private ButtonWidget compassOffButton;
-   private boolean isModEnabled;
-   private boolean isCompassEnabled;
-   private Map<String, String> messages = new HashMap<>();
-
-   protected FriendGuardConfigScreen(Screen parent) {
-      super(Text.literal("FriendGuard Config"));
-      this.parent = parent;
-      this.protectedPlayers = FriendGuardClient.ProtectedPlayers;
-      this.scrollOffset = 0;
-      this.isModEnabled = FriendGuardClient.isModEnabled;
-      this.isCompassEnabled = FriendGuardClient.isCompassEnabled;
-      this.loadMessages();
-      this.errorMessage = this.messages.get("descriptionLabel");
-   }
-
    private void loadMessages() {
       String clientLanguage = MinecraftClient.getInstance().getLanguageManager().getLanguage();
       if ("tr_tr".equals(clientLanguage)) {
@@ -284,7 +257,7 @@ public class FriendGuardConfigScreen extends Screen {
       this.addDrawableChild(
          ButtonWidget.builder(
             Text.literal(this.messages.get("trackerButton")),
-            button -> FriendGuardClient.trackerKey.pressed() ? TrackerPanel.openTrackerPanel(this) : null
+            button -> { if (FriendGuardClient.trackerKey.pressed()) TrackerPanel.openTrackerPanel(this); }
          )
             .position(centerX + 50, startY + 140)
             .size(200, 20)
@@ -413,3 +386,4 @@ public class FriendGuardConfigScreen extends Screen {
       return playerName.length() >= 3 && playerName.length() <= 16;
    }
 }
+                                                 

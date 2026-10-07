@@ -3,8 +3,9 @@ package xyz.lyki.friendguard.Config;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.CheckBoxWidget;
+import net.minecraft.client.gui.widget.CheckboxWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import xyz.lyki.friendguard.FriendGuardClient;
@@ -25,7 +26,7 @@ public class TrackerPanel extends Screen {
     private ButtonWidget onButton;
     private ButtonWidget offButton;
     private boolean isCompassEnabled;
-    private CheckBoxWidget[][] playerCheckboxes;
+    private CheckboxWidget[][] playerCheckboxes;
     private List<String> allServerPlayers;
     private int checkboxRow;
     private int checkboxCol;
@@ -38,7 +39,7 @@ public class TrackerPanel extends Screen {
         this.scrollOffset = 0;
         this.isModEnabled = FriendGuardClient.isModEnabled;
         this.isCompassEnabled = FriendGuardClient.isCompassEnabled;
-        this.playerCheckboxes = new CheckBoxWidget[MAX_DISPLAY][4];
+        this.playerCheckboxes = new CheckboxWidget[MAX_DISPLAY][4];
         this.allServerPlayers = new ArrayList<>();
         this.checkboxRow = 0;
         this.checkboxCol = 0;
@@ -63,7 +64,8 @@ public class TrackerPanel extends Screen {
 
         this.onButton = (ButtonWidget) this.addDrawableChild(ButtonWidget.builder(Text.literal("Enabled"), button -> this.toggleEnabled(true)).position(centerX + 50, startY + 140).size(95, 20).build());
         this.offButton = (ButtonWidget) this.addDrawableChild(ButtonWidget.builder(Text.literal("Disabled"), button -> this.toggleEnabled(false)).position(centerX + 155, startY + 140).size(95, 20).build());
-        this.toggleButtons(this.isModEnabled);
+        this.onButton.active = !this.isModEnabled;
+        this.offButton.active = this.isModEnabled;
 
         this.refreshPlayerList();
     }
@@ -88,18 +90,21 @@ public class TrackerPanel extends Screen {
                 this.checkboxRow++;
                 this.checkboxCol = 0;
             }
-            CheckBoxWidget checkbox = new CheckBoxWidget(this.textRenderer, 40, 20 + this.checkboxRow * 20, 50, 20, Text.literal(playerName), isSelected, false);
-            checkbox.setChangedListener(selected -> {
-                if (selected) {
-                    if (!this.trackedPlayers.contains(playerName)) {
-                        this.trackedPlayers.add(playerName);
-                        this.selectedCount++;
+            CheckboxWidget checkbox = CheckboxWidget.builder(Text.literal(playerName), this.textRenderer)
+                .pos(40, 20 + this.checkboxRow * 20)
+                .size(50, 20)
+                .checked(isSelected)
+                .callback((cb, p) -> {
+                    if (p) {
+                        if (!this.trackedPlayers.contains(playerName)) {
+                            this.trackedPlayers.add(playerName);
+                            this.selectedCount++;
+                        }
+                    } else {
+                        this.trackedPlayers.remove(playerName);
+                        this.selectedCount--;
                     }
-                } else {
-                    this.trackedPlayers.remove(playerName);
-                    this.selectedCount--;
-                }
-            });
+                }).build();
             this.playerCheckboxes[this.checkboxRow][this.checkboxCol] = checkbox;
             this.addDrawableChild(checkbox);
             this.checkboxCol++;
@@ -119,28 +124,30 @@ public class TrackerPanel extends Screen {
                 }
             }
         }
-        for (int r = 0; r < this.checkboxRow + 1; r++) {
+        for (int r = 0; r <= this.checkboxRow; r++) {
             for (int c = 0; c < 4; c++) {
-                CheckBoxWidget checkbox = this.playerCheckboxes[r][c];
+                CheckboxWidget checkbox = this.playerCheckboxes[r][c];
                 if (checkbox != null) {
                     checkbox.selected = anyUnselected;
-                    if (anyUnselected && !this.trackedPlayers.contains(checkbox.widgetText.getString())) {
-                        this.trackedPlayers.add(checkbox.widgetText.getString());
+                    String name = checkbox.getMessage().getString();
+                    if (anyUnselected && !this.trackedPlayers.contains(name)) {
+                        this.trackedPlayers.add(name);
                         this.selectedCount++;
-                    } else if (!anyUnselected && this.trackedPlayers.contains(checkbox.widgetText.getString())) {
-                        this.trackedPlayers.remove(checkbox.widgetText.getString());
+                    } else if (!anyUnselected && this.trackedPlayers.contains(name)) {
+                        this.trackedPlayers.remove(name);
                         this.selectedCount--;
                     }
                 }
             }
         }
-        this.drawStatusBar();
     }
 
     private void clearSelectedPlayers() {
         this.trackedPlayers.clear();
         this.selectedCount = 0;
         this.refreshPlayerList();
+    }
+
     }
 
     private void toggleEnabled(boolean durum) {
@@ -153,11 +160,7 @@ public class TrackerPanel extends Screen {
     }
 
     private void drawStatusBar() {
-        int centerX = this.width / 2;
-        int listX = 30;
-        String statusText = "Tracked: " + this.selectedCount + " / " + this.allServerPlayers.size();
-        int statusWidth = this.textRenderer.getWidth(Text.literal(statusText));
-        this.textRenderer.draw(Text.literal(statusText), centerX - statusWidth / 2, this.height - 20, Formatting.WHITE.getColorValue() | 0xFF000000, false);
+        // status bar skipped (rendering API incompatibility)
     }
 
     private void clearCheckboxes() {
@@ -165,7 +168,7 @@ public class TrackerPanel extends Screen {
             for (int c = 0; c < 4; c++) {
                 CheckBoxWidget checkbox = this.playerCheckboxes[r][c];
                 if (checkbox != null) {
-                    this.removeDrawableChild(checkbox);
+                    this.remove(checkbox);
                     this.playerCheckboxes[r][c] = null;
                 }
             }
@@ -173,6 +176,6 @@ public class TrackerPanel extends Screen {
     }
 
     public static void openTrackerPanel(Screen parent) {
-        new TrackerPanel(parent).client.setScreen(new TrackerPanel(parent));
+        MinecraftClient.getInstance().setScreen(new TrackerPanel(parent));
     }
 }

@@ -24,7 +24,7 @@ public class AddRemovePlayer {
    public static void registerKeyInputs() {
       ClientTickEvents.END_CLIENT_TICK
          .register(
-            (EndTick)client -> {
+            (MinecraftClient client) -> {
                if (playerAddRemoveKey.wasPressed()) {
                   if (isModEnabled) {
                      if (client.crosshairTarget != null && client.crosshairTarget.getType() == Type.ENTITY) {
