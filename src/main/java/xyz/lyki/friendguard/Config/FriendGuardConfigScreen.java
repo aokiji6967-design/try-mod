@@ -413,4 +413,3 @@ public class FriendGuardConfigScreen extends Screen {
       return playerName.length() >= 3 && playerName.length() <= 16;
    }
 }
-                                                 
