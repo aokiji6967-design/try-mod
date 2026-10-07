@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "friendguard",
+  "version": "2.2.2",
+  "name": "No Friendly Fire",
+  "description": "Stop accidentally killing your friends!",
+  "authors": [
+    "lykiaofficial"
+  ],
+  "contact": {
+    "homepage": "https://lyki.dev",
+    "github": "https://github.com/lykiaofficial",
+    "curseforge": "https://www.curseforge.com/minecraft/mc-mods/friendguard/",
+    "modrinth": "https://modrinth.com/mod/friendguard/",
+    "issues": "https://lyki.dev"
+  },
+  "icon": "logo.png",
+  "license": "All Rights Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "xyz.lyki.friendguard.FriendGuard"
+    ],
+    "client": [
+      "xyz.lyki.friendguard.FriendGuardClient"
+    ],
+    "modmenu": [
+      "xyz.lyki.friendguard.Config.FriendGuardModMenu"
+    ]
+  },
+  "mixins": [
+    "friendguard.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.11",
+    "fabric": "*",
+    "minecraft": ">=1.18.2",
+    "java": ">=17"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.discord": "https://discord.gg/E5AWpWSvVe",
+        "modmenu.source": "https://github.com/lykiaofficial",
+        "modmenu.curseforge": "https://www.curseforge.com/minecraft/mc-mods/friendguard/",
+        "modmenu.modrinth": "https://modrinth.com/mod/friendguard/"
+      },
+      "update_checker": true
+    }
+  }
+}

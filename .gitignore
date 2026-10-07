@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+
+# Local decompiler tooling and intermediate output (not needed to build)
+tools/
+decompiled/
+decompiled-named/
+remapped/
+
+# The original closed-source jar — All Rights Reserved, must not be redistributed
+friendguard-2.2.2-mc1.21.11.jar
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# App state
+.freebuff/
