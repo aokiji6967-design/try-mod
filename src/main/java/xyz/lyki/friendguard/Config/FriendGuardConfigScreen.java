@@ -9,12 +9,43 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Util;
 import xyz.lyki.friendguard.FriendGuardClient;
 import xyz.lyki.friendguard.KeyUtils.AddRemovePlayer;
 import xyz.lyki.friendguard.KeyUtils.ClearList;
+import xyz.lyki.friendguard.Config.TrackerPanel;
+
+public class FriendGuardConfigScreen extends Screen {
+   private final Screen parent;
+   private TextFieldWidget textFieldWidget;
+   private List<String> protectedPlayers;
+   private String errorMessage;
+   private int scrollOffset;
+   private static final int MAX_DISPLAY = 10;
+   private static final int SCROLL_STEP = 10;
+   private ButtonWidget onButton;
+   private ButtonWidget offButton;
+   private ButtonWidget compassOnButton;
+   private ButtonWidget compassOffButton;
+   private boolean isModEnabled;
+   private boolean isCompassEnabled;
+   private Map<String, String> messages = new HashMap<>();
+   /** Opens the per-player tracker GUI on J (keycode 74). */
+   public static net.minecraft.client.option.KeyBinding trackerKey;
+
+   protected FriendGuardConfigScreen(Screen parent) {
+      super(Text.literal("FriendGuard Config"));
+      this.parent = parent;
+      this.protectedPlayers = FriendGuardClient.ProtectedPlayers;
+      this.scrollOffset = 0;
+      this.isModEnabled = FriendGuardClient.isModEnabled;
+      this.isCompassEnabled = FriendGuardClient.isCompassEnabled;
+      this.loadMessages();
+      this.errorMessage = this.messages.get("descriptionLabel");
+   }
 
 public class FriendGuardConfigScreen extends Screen {
    private final Screen parent;
@@ -47,6 +78,7 @@ public class FriendGuardConfigScreen extends Screen {
       String clientLanguage = MinecraftClient.getInstance().getLanguageManager().getLanguage();
       if ("tr_tr".equals(clientLanguage)) {
          this.messages.put("friendguardlabel", "FriendGuard: Arkadaşınıza Zarar Vermeyin");
+         this.messages.put("trackerButton", "Tracked Players (J)");
          this.messages.put("playerNameLabel", "Oyuncu Adı:");
          this.messages.put("modSettingsLabel", "Mod Ayarları");
          this.messages.put("addPlayerButton", "Oyuncu Ekle");
@@ -213,6 +245,16 @@ public class FriendGuardConfigScreen extends Screen {
       int startY = this.height / 4 - 20;
       int listX = 30;
       int listY = startY + 30;
+
+      // J key opens the per-player tracker: select which server players to track
+      // with one arrow per player in the action bar.
+      trackerKey = new net.minecraft.client.option.KeyBinding(
+         "Open Player Tracker (J)",
+         InputUtil.Type.KEYSYM,
+         74,
+         net.minecraft.client.option.KeyBinding.Category.MISC
+      );
+      net.minecraft.client.option.KeyBinding.setAutoReset(true);
       this.textFieldWidget = new TextFieldWidget(this.textRenderer, centerX + 50, startY + 20, 200, 20, Text.literal(""));
       this.addDrawableChild(this.textFieldWidget);
       this.addDrawableChild(ButtonWidget.builder(Text.literal(this.messages.get("addPlayerButton")), button -> {
@@ -239,6 +281,15 @@ public class FriendGuardConfigScreen extends Screen {
          this.protectedPlayers.clear();
          this.errorMessage = this.messages.get("descriptionLabel");
       }).position(centerX + 50, startY + 110).size(200, 20).build());
+      this.addDrawableChild(
+         ButtonWidget.builder(
+            Text.literal(this.messages.get("trackerButton")),
+            button -> FriendGuardClient.trackerKey.pressed() ? TrackerPanel.openTrackerPanel(this) : null
+         )
+            .position(centerX + 50, startY + 140)
+            .size(200, 20)
+            .build()
+      );
       this.addDrawableChild(
          ButtonWidget.builder(Text.literal(this.messages.get("websiteButton")), button -> Util.getOperatingSystem().open("https://lyki.dev"))
             .position(centerX + 50, startY + 140)

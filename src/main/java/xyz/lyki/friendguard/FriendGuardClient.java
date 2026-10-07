@@ -43,6 +43,18 @@ import xyz.lyki.friendguard.KeyUtils.ClearList;
 public class FriendGuardClient implements ClientModInitializer {
    public static ArrayList<String> ProtectedPlayers = FriendGuard.ProtectedPlayers;
    private static final File configFile = new File("mods/FriendGuard/FriendGuardConfig.json");
+   private static final List<String> ALL_PLAYER_NAMES = new ArrayList<>();
+
+   /** Server-side player list populated from ClientPlayNetworkHandler.getPlayerList(). */
+   public static List<String> getAllPlayers() {
+      return Collections.unmodifiableList(ALL_PLAYER_NAMES);
+   }
+
+   /** Selected/tracked set used for the per-player action-bar arrows. */
+   public static List<String> getTrackedPlayers() {
+      return Collections.unmodifiableList(ProtectedPlayers);
+   }
+
    public static final Logger LOGGER = FriendGuard.LOGGER;
    public static Map<String, String> messages = new HashMap<>();
    public static boolean isModEnabled;
@@ -57,12 +69,19 @@ public class FriendGuardClient implements ClientModInitializer {
       AddRemovePlayer.register();
       ClearList.register();
       this.readConfigFile();
-      ClientTickEvents.END_CLIENT_TICK.register((EndTick)client -> {
-         if (client.world != null && client.player != null && MinecraftClient.getInstance().getLanguageManager().getLanguage() != null) {
-            String currentLanguage = client.getLanguageManager().getLanguage();
-            if (!currentLanguage.equals(this.lastClientLanguage)) {
-               this.lastClientLanguage = currentLanguage;
-               this.loadLanguageMessages(currentLanguage);
+
+      // Tick loop: refresh the server player list and the tracked set every frame
+      // so the tracker stays in sync across dimension switches.
+      ClientTickEvents.END_CLIENT_TICK.register(
+         (EndTick)client -> {
+            this.updatePlayerList(client);
+
+            if (client.world != null && client.player != null && MinecraftClient.getInstance().getLanguageManager().getLanguage() != null) {
+               String currentLanguage = client.getLanguageManager().getLanguage();
+               if (!currentLanguage.equals(this.lastClientLanguage)) {
+                  this.lastClientLanguage = currentLanguage;
+                  this.loadLanguageMessages(currentLanguage);
+               }
             }
          }
       });
@@ -80,8 +99,7 @@ public class FriendGuardClient implements ClientModInitializer {
                   BlockPos ownPos = client.player.getBlockPos();
 
                   int protectedCount = 0;
-                  PlayerTrackerInfo closest = null;
-                  double closestDistance = Double.MAX_VALUE;
+                  List<PlayerTrackerInfo> trackedInfos = new ArrayList<>();
 
                   for (PlayerTrackerInfo info : allPlayers) {
                      if (info.player == null) {
@@ -94,63 +112,60 @@ public class FriendGuardClient implements ClientModInitializer {
 
                      if (ProtectedPlayers.contains(info.name)) {
                         protectedCount++;
+                        if (info.name != null && client.player != null) {
+                           trackedInfos.add(info);
+                        }
                         continue;
                      }
 
                      double distance = info.player.getBlockPos().getSquaredDistance(ownPos);
-                     if (distance < closestDistance) {
-                        closestDistance = distance;
-                        closest = info;
+                     if (ProtectedPlayers.contains(info.name)) {
+                        trackedInfos.add(info);
                      }
                   }
 
-                  List<PlayerTrackerInfo> others = new ArrayList<>();
-                  for (PlayerTrackerInfo info : allPlayers) {
-                     if (ProtectedPlayers.contains(info.name) || info == closest || info.player == client.player) {
+                  // Build one arrow per tracked player. Unreachable players (another
+                  // dimension, or outside entity range) are announced as "in another
+                  // dimension" and skipped for arrows because the client has no
+                  // position for them.
+                  StringBuilder actionBarMessage = new StringBuilder();
+                  boolean first = true;
+
+                  for (PlayerTrackerInfo info : trackedInfos) {
+                     if (first) {
+                        first = false;
+                     } else {
+                        actionBarMessage.append(" | ");
+                     }
+
+                     if (info.player == null) {
+                        actionBarMessage.append(Formatting.GRAY);
+                        actionBarMessage.append(info.name);
+                        if (info.inOtherDimension) {
+                           actionBarMessage.append(Formatting.WHITE).append(" [").append(info.dimensionLabel).append("]");
+                        }
+                        actionBarMessage.append(Formatting.RED).append(messages.get("inAnotherDimension"));
                         continue;
                      }
-                     others.add(info);
+
+                     String direction = this.getCompassSymbol(client.player, info.player);
+                     int meters = (int)Math.sqrt(info.player.getBlockPos().getSquaredDistance(ownPos));
+                     String suffix = this.buildSuffix(info);
+
+                     actionBarMessage.append(Formatting.GRAY).append(info.name);
+                     actionBarMessage.append(Formatting.WHITE).append(" [").append(direction).append("]");
+                     actionBarMessage.append(Formatting.WHITE).append(meters).append("m").append(suffix);
                   }
 
-                  PlayerTrackerInfo closestRemote = null;
-                  for (PlayerTrackerInfo info : others) {
-                     if (info.player == null) {
-                        closestRemote = info;
-                        break;
-                     }
-                  }
-
-                  String actionBarMessage = null;
-
-                  if (closest != null) {
-                     String direction = this.getCompassSymbol(client.player, closest.player);
-                     int meters = (int)Math.sqrt(closestDistance);
-                     String suffix = this.buildSuffix(closest);
-
-                     if (others.size() > 2) {
-                        actionBarMessage = closest.name + messages.get("closest") + direction + suffix + " | " + others.size() + messages.get("morePlayersFound");
-                     } else {
-                        actionBarMessage = closest.name + messages.get("isNearby") + direction + suffix + " (" + meters + "m)";
-                        if (!others.isEmpty()) {
-                           actionBarMessage = actionBarMessage + ", " + this.joinNames(others);
-                        }
-                     }
-                  } else if (closestRemote != null) {
-                     actionBarMessage = closestRemote.name + messages.get("isInAnotherDimension");
-                     if (others.size() > 1) {
-                        actionBarMessage = actionBarMessage + " | " + (others.size() - 1) + messages.get("morePlayersFound");
-                     }
-                  }
-
-                  if (actionBarMessage == null) {
+                  if (actionBarMessage.length() == 0) {
                      return;
                   }
 
                   if (protectedCount > 0) {
-                     actionBarMessage = Formatting.GREEN + "(" + protectedCount + ") " + Formatting.RED + actionBarMessage;
+                     actionBarMessage.insert(0, Formatting.GREEN).append(" (").append(protectedCount).append(")").append(Formatting.RED);
                   }
 
-                  client.inGameHud.setOverlayMessage(Text.literal(actionBarMessage).formatted(Formatting.RED), false);
+                  client.inGameHud.setOverlayMessage(Text.literal(actionBarMessage.toString()).formatted(Formatting.RED), false);
                }
             }
          );
@@ -211,6 +226,38 @@ public class FriendGuardClient implements ClientModInitializer {
       }
 
       return result;
+   }
+
+   /**
+    * Updates the cached server player list from ClientPlayNetworkHandler.getPlayerList().
+    * ClientPlayNetworkHandler must not be null here (client is connected and has a
+    * player list). The method is idempotent: it clears the existing roster, then fills
+    * it with a new copy. Only the player names are stored here so the tracker can
+    * render the selection GUI even while switching dimensions.
+    */
+   public void updatePlayerList(MinecraftClient client) {
+      ClientPlayNetworkHandler handler = client.getNetworkHandler();
+      if (handler == null) {
+         ALL_PLAYER_NAMES.clear();
+         return;
+      }
+
+      List<String> fresh = new ArrayList<>();
+      for (PlayerListEntry entry : handler.getPlayerList()) {
+         if (entry.getProfile() == null) {
+            continue;
+         }
+
+         String playerName = entry.getProfile().name();
+         if (playerName == null || playerName.isEmpty()) {
+            continue;
+         }
+
+         fresh.add(playerName);
+      }
+
+      ALL_PLAYER_NAMES.clear();
+      ALL_PLAYER_NAMES.addAll(fresh);
    }
 
    private String buildSuffix(PlayerTrackerInfo info) {
